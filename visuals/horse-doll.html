@@ -12,13 +12,22 @@
     textarea{width:100%;height:80px;margin-top:8px}
     .actions{display:flex;gap:10px;justify-content:center;margin-top:12px}
     button{background:#31261D;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .qr{margin-top:14px}
+    iframe{display:none}
   </style>
 </head>
 <body>
   <div class="card">
     <h2>Horse & Doll visuals</h2>
-    <p class="note">This page shows the two images (horse + doll) embedded in <code>mawlid_personality 6.html</code>. If you're viewing this from GitHub Pages (recommended) the images should appear automatically.</p>
+    <p class="note">This page shows the two images (horse + doll) embedded in <code>mawlid_personality 6.html</code>, and a QR code linking to the quiz. If you're viewing this from GitHub Pages the images and QR should load automatically. If not, use the manual paste fallback below.</p>
+
     <div id="gallery">Loading images…</div>
+
+    <div id="qrArea" class="qr" style="display:none">
+      <p class="note">QR code to open the quiz:</p>
+      <img id="qrImg" alt="QR code to quiz" width="240" height="240">
+      <div style="margin-top:8px"><a id="qrDownload" download="mawlid-quiz-qr.png">Download QR</a></div>
+    </div>
 
     <div id="manual" style="display:none; margin-top:12px; text-align:left;">
       <p class="note">Automatic load failed. Paste the two <code>data:image/png;base64,...</code> image strings below (one per line), then click Show.</p>
@@ -26,18 +35,89 @@
       <div class="actions"><button id="showBtn">Show</button><button id="clearBtn">Clear</button></div>
     </div>
 
-    <p class="note">If images remain blank, open the repository via GitHub Pages (not file:// or raw GitHub). The Pages URL is usually:<br><strong>https://Sarahzidan99.github.io/moulid-personality-game/visuals/horse-doll.html</strong></p>
+    <p class="note">Pages URL (if enabled):<br><strong>https://Sarahzidan99.github.io/moulid-personality-game/mawlid_personality%206.html</strong></p>
   </div>
+
+  <!-- Hidden iframe used when this page is served via Pages from the same origin -->
+  <iframe id="srcFrame" src="/mawlid_personality%206.html"></iframe>
 
   <script>
     const gallery = document.getElementById('gallery');
     const manual = document.getElementById('manual');
+    const frame = document.getElementById('srcFrame');
+    const qrArea = document.getElementById('qrArea');
+    const qrImg = document.getElementById('qrImg');
+    const qrDownload = document.getElementById('qrDownload');
+
+    const pagesURL = 'https://Sarahzidan99.github.io/moulid-personality-game/mawlid_personality%206.html';
+    const qrService = (u) => 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' + encodeURIComponent(u) + '&choe=UTF-8';
+
+    function showImages(horseSrc, dollSrc){
+      gallery.innerHTML = '';
+      const img1 = document.createElement('img'); img1.src = horseSrc; img1.alt = 'Horse'; img1.style.maxWidth = '48%';
+      const img2 = document.createElement('img'); img2.src = dollSrc; img2.alt = 'Doll'; img2.style.maxWidth = '48%';
+      gallery.appendChild(img1); gallery.appendChild(img2);
+
+      // show QR
+      qrImg.src = qrService(pagesURL);
+      qrDownload.href = qrImg.src;
+      qrArea.style.display = 'block';
+    }
+
+    function showManual(){
+      gallery.innerHTML = '<div style="color:#a0896f">Could not auto-load images. Use the manual paste area below.</div>';
+      manual.style.display = 'block';
+      // still show QR linking to the pagesURL
+      qrImg.src = qrService(pagesURL);
+      qrDownload.href = qrImg.src;
+      qrArea.style.display = 'block';
+    }
+
+    // Try iframe approach first (works when served via Pages - same origin)
+    function tryIframe() {
+      try {
+        frame.addEventListener('load', () => {
+          try {
+            const doc = frame.contentDocument || frame.contentWindow.document;
+            if (!doc) { showManual(); return; }
+            const imgs = doc.querySelectorAll('img[src^="data:image/png;base64,"]');
+            if (imgs && imgs.length >= 2) {
+              const horse = imgs[0].getAttribute('src');
+              const doll = imgs[1].getAttribute('src');
+              showImages(horse, doll);
+            } else {
+              const html = doc.documentElement.innerHTML;
+              const rx = /src\s*=\s*\"(data:image\/png;base64,[^\"]+)\"/g;
+              const matches = [];
+              let m; while ((m = rx.exec(html)) !== null) matches.push(m[1]);
+              if (matches.length >= 2) showImages(matches[0], matches[1]);
+              else showManual();
+            }
+          } catch (err) {
+            console.warn('iframe load error', err);
+            showManual();
+          }
+        });
+        setTimeout(() => {
+          try {
+            const doc = frame.contentDocument || frame.contentWindow && frame.contentWindow.document;
+            if (doc) {
+              const imgs = doc.querySelectorAll('img[src^="data:image/png;base64,"]');
+              if (imgs && imgs.length >= 2) {
+                showImages(imgs[0].getAttribute('src'), imgs[1].getAttribute('src'));
+              }
+            }
+          } catch(e){}
+        }, 300);
+      } catch(e){ showManual(); }
+    }
+
+    // If iframe fails (file:// or cross-origin), fall back to fetching the HTML text via relative path
     async function tryFetchEmbedded(){
       try{
         const resp = await fetch('./mawlid_personality%206.html');
         if(!resp.ok) throw new Error('HTTP ' + resp.status);
         const txt = await resp.text();
-        // find data:image/png;base64,... occurrences
         const rx = /src\s*=\s*\"(data:image\/png;base64,[^\"]+)\"/g;
         const matches = [];
         let m;
@@ -56,18 +136,6 @@
       }
     }
 
-    function showImages(horseSrc, dollSrc){
-      gallery.innerHTML = '';
-      const img1 = document.createElement('img'); img1.src = horseSrc; img1.alt = 'Horse'; img1.style.maxWidth = '48%';
-      const img2 = document.createElement('img'); img2.src = dollSrc; img2.alt = 'Doll'; img2.style.maxWidth = '48%';
-      gallery.appendChild(img1); gallery.appendChild(img2);
-    }
-
-    function showManual(){
-      gallery.innerHTML = '<div style="color:#a0896f">Could not auto-load images. Use the manual paste area below.</div>';
-      manual.style.display = 'block';
-    }
-
     document.getElementById('showBtn').onclick = ()=>{
       const txt = document.getElementById('paste').value.trim();
       if(!txt){ alert('Paste the two data URIs (one per line)'); return; }
@@ -77,8 +145,15 @@
     };
     document.getElementById('clearBtn').onclick = ()=>{ document.getElementById('paste').value=''; };
 
-    // Auto-run
-    tryFetchEmbedded();
+    // Run iframe attempt first, then try fetch as a fallback
+    (async ()=>{
+      tryIframe();
+      setTimeout(async ()=>{
+        if (gallery.innerText.includes('Loading')) {
+          await tryFetchEmbedded();
+        }
+      }, 700);
+    })();
   </script>
 </body>
 </html>
