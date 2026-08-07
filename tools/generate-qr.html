@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Generate MAF QR (horse + doll) — generator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;padding:20px;background:#f7f3ee;color:#31261D}
+    button{padding:8px 12px;border-radius:8px;border:none;background:#31261D;color:#fff;cursor:pointer}
+    textarea,input{width:100%;padding:10px;border-radius:8px;border:1px solid #d6c9b3}
+    .col{display:flex;gap:12px}
+    .col > div{flex:1}
+    #qr{max-width:320px;margin-top:12px}
+    .note{font-size:0.9em;color:#6b5a45}
+    .success{color:green}
+  </style>
+</head>
+<body>
+  <h2>MAF QR generator — horse + doll composite</h2>
+  <p class="note">This page will try to read the embedded images from <code>mawlid_personality 6.html</code> in this repo automatically. If you open this file locally and the automatic fetch fails, the page provides textareas where you can paste the two data-URI PNG strings manually.</p>
+
+  <div>
+    <label><strong>Target URL</strong> — the link the QR should open (GitHub Pages URL is recommended)</label>
+    <input id="targetUrl" value="https://Sarahzidan99.github.io/moulid-personality-game/" />
+  </div>
+  <br/>
+  <div class="col">
+    <div>
+      <label><strong>Horse image (data URI)</strong></label>
+      <textarea id="horse" rows="4" placeholder="data:image/png;base64,..."></textarea>
+    </div>
+    <div>
+      <label><strong>Doll image (data URI)</strong></label>
+      <textarea id="doll" rows="4" placeholder="data:image/png;base64,..."></textarea>
+    </div>
+  </div>
+  <br/>
+  <div>
+    <button id="autoBtn">Auto-detect images from mawlid_personality 6.html</button>
+    <button id="make">Make QR</button>
+    <button id="download" style="display:none">Download PNG</button>
+  </div>
+
+  <div id="status" style="margin-top:12px" class="note"></div>
+  <div id="out"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+  <script>
+    const status = document.getElementById('status');
+    const horseEl = document.getElementById('horse');
+    const dollEl = document.getElementById('doll');
+    const targetEl = document.getElementById('targetUrl');
+    let qrCode = null;
+
+    function setStatus(msg, ok){ status.innerText = msg; status.className = ok ? 'success' : 'note'; }
+
+    async function fetchEmbedded() {
+      setStatus('Trying to fetch "mawlid_personality 6.html" from the same directory...');
+      try {
+        const resp = await fetch('./mawlid_personality%206.html');
+        if (!resp.ok) throw new Error('Fetch failed: ' + resp.status);
+        const txt = await resp.text();
+        // find data:image/png;base64,... occurrences
+        const rx = /src\s*=\s*\"(data:image\/png;base64,[^"]+)\"/g;
+        const matches = [];
+        let m; while ((m = rx.exec(txt)) !== null) matches.push(m[1]);
+        if (matches.length >= 2) {
+          horseEl.value = matches[0];
+          dollEl.value = matches[1];
+          setStatus('Found ' + matches.length + ' embedded images. First two placed into fields.');
+          return true;
+        } else {
+          setStatus('No embedded PNG data URIs found in that file. You can paste them manually.', false);
+          return false;
+        }
+      } catch (err) {
+        setStatus('Automatic fetch failed — likely because you opened this file with file:// or GitHub raw CORS blocks fetch. Paste the data URIs manually instead.', false);
+        return false;
+      }
+    }
+
+    async function makeComposite(horseSrc, dollSrc, size=400) {
+      return new Promise((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const w = size, h = size;
+        canvas.width = w; canvas.height = h;
+        const img1 = new Image();
+        const img2 = new Image();
+        let loaded = 0;
+        [img1, img2].forEach((im)=>{ im.crossOrigin='anonymous'; im.onload = ()=>{ loaded++; if(loaded===2){ draw(); }}; im.onerror=err=>reject(err); });
+        img1.src = horseSrc;
+        img2.src = dollSrc;
+        function draw(){
+          // white rounded bg
+          ctx.fillStyle = '#ffffff';
+          const pad = 12; const r = 28;
+          roundRect(ctx, pad, pad, w-2*pad, h-2*pad, r); ctx.fill();
+          // compute inner area and draw two images side-by-side
+          const innerW = w - 2*(pad + 12);
+          const imgW = innerW/2;
+          const imgH = imgW;
+          ctx.drawImage(img1, pad + 12, (h - imgH)/2, imgW, imgH);
+          ctx.drawImage(img2, pad + 12 + imgW, (h - imgH)/2, imgW, imgH);
+          resolve(canvas.toDataURL('image/png'));
+        }
+        function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+      });
+    }
+
+    document.getElementById('autoBtn').onclick = async () => { await fetchEmbedded(); };
+
+    document.getElementById('make').onclick = async () => {
+      const horse = horseEl.value.trim();
+      const doll = dollEl.value.trim();
+      const url = targetEl.value.trim();
+      if (!horse || !doll || !url) { alert('Please provide both images and the target URL.'); return; }
+      setStatus('Compositing logo...');
+      try {
+        const logoDataUrl = await makeComposite(horse, doll, 420);
+        setStatus('Logo composited — creating QR...');
+        if (qrCode && document.getElementById('qr')) { document.getElementById('qr').remove(); }
+        qrCode = new QRCodeStyling({
+          width: 760, height: 760, data: url,
+          image: logoDataUrl,
+          dotsOptions: { color: "#31261D", type: "rounded" },
+          backgroundOptions: { color: "#ffffff" },
+          imageOptions: { crossOrigin: "anonymous", margin: 8, imageSize: 0.28 }
+        });
+        const div = document.createElement('div'); div.id = 'qr'; document.getElementById('out').appendChild(div);
+        await qrCode.append(div);
+        document.getElementById('download').style.display = 'inline-block';
+        document.getElementById('download').onclick = ()=> qrCode.download({ name: 'moulid-qr', extension: 'png' });
+        setStatus('QR created — click Download PNG to save. Test scanning with a phone camera.');
+      } catch (err) {
+        console.error(err);
+        setStatus('Error creating QR: ' + (err.message || err), false);
+        alert('Error creating QR. Open the console for details.');
+      }
+    };
+
+    // Try auto-fetch once when page opens (nice UX when served from repo on GitHub Pages)
+    (async ()=>{ await fetchEmbedded(); })();
+  </script>
+</body>
+</html>
