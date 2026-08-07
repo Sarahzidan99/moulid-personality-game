@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Horse & Doll — visuals</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#faf6ef;color:#31261D;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+    .card{background:#fff;border-radius:14px;padding:20px;max-width:720px;width:95%;box-shadow:0 12px 40px rgba(49,38,29,0.08);text-align:center}
+    img{max-width:100%;height:auto;display:inline-block;margin:12px}
+    .note{color:#6b5a45;margin-top:8px}
+    textarea{width:100%;height:80px;margin-top:8px}
+    .actions{display:flex;gap:10px;justify-content:center;margin-top:12px}
+    button{background:#31261D;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Horse & Doll visuals</h2>
+    <p class="note">This page shows the two images (horse + doll) embedded in <code>mawlid_personality 6.html</code>. If you're viewing this from GitHub Pages (recommended) the images should appear automatically.</p>
+    <div id="gallery">Loading images…</div>
+
+    <div id="manual" style="display:none; margin-top:12px; text-align:left;">
+      <p class="note">Automatic load failed. Paste the two <code>data:image/png;base64,...</code> image strings below (one per line), then click Show.</p>
+      <textarea id="paste"></textarea>
+      <div class="actions"><button id="showBtn">Show</button><button id="clearBtn">Clear</button></div>
+    </div>
+
+    <p class="note">If images remain blank, open the repository via GitHub Pages (not file:// or raw GitHub). The Pages URL is usually:<br><strong>https://Sarahzidan99.github.io/moulid-personality-game/visuals/horse-doll.html</strong></p>
+  </div>
+
+  <script>
+    const gallery = document.getElementById('gallery');
+    const manual = document.getElementById('manual');
+    async function tryFetchEmbedded(){
+      try{
+        const resp = await fetch('./mawlid_personality%206.html');
+        if(!resp.ok) throw new Error('HTTP ' + resp.status);
+        const txt = await resp.text();
+        // find data:image/png;base64,... occurrences
+        const rx = /src\s*=\s*\"(data:image\/png;base64,[^\"]+)\"/g;
+        const matches = [];
+        let m;
+        while((m = rx.exec(txt)) !== null) matches.push(m[1]);
+        if(matches.length >= 2){
+          showImages(matches[0], matches[1]);
+          return true;
+        } else {
+          showManual();
+          return false;
+        }
+      }catch(err){
+        console.warn('fetch failed', err);
+        showManual();
+        return false;
+      }
+    }
+
+    function showImages(horseSrc, dollSrc){
+      gallery.innerHTML = '';
+      const img1 = document.createElement('img'); img1.src = horseSrc; img1.alt = 'Horse'; img1.style.maxWidth = '48%';
+      const img2 = document.createElement('img'); img2.src = dollSrc; img2.alt = 'Doll'; img2.style.maxWidth = '48%';
+      gallery.appendChild(img1); gallery.appendChild(img2);
+    }
+
+    function showManual(){
+      gallery.innerHTML = '<div style="color:#a0896f">Could not auto-load images. Use the manual paste area below.</div>';
+      manual.style.display = 'block';
+    }
+
+    document.getElementById('showBtn').onclick = ()=>{
+      const txt = document.getElementById('paste').value.trim();
+      if(!txt){ alert('Paste the two data URIs (one per line)'); return; }
+      const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      if(lines.length < 2){ alert('Please paste at least two data URIs (horse then doll)'); return; }
+      showImages(lines[0], lines[1]);
+    };
+    document.getElementById('clearBtn').onclick = ()=>{ document.getElementById('paste').value=''; };
+
+    // Auto-run
+    tryFetchEmbedded();
+  </script>
+</body>
+</html>
